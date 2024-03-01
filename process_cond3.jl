@@ -9,7 +9,7 @@ function find_restriction_site(dna::LongSequence{DNAAlphabet{4}}, site::LongSequ
     reverse_check = occursin(query, reverse_dna)
     CheckResult = Dict("forwad"=>Vector{Int64}(), "reverse"=>Vector{Int64}())
     if forward_check && !reverse_check
-        locs = findall(query, dna)   
+        locs = findall(query, dna)
         startSite = [loc.start for loc in locs]
         CheckResult["forwad"] = startSite
         CheckResult["reverse"] = [0]
@@ -19,7 +19,7 @@ function find_restriction_site(dna::LongSequence{DNAAlphabet{4}}, site::LongSequ
         CheckResult["forwad"] = [0]
         CheckResult["reverse"] = startSite_reverse
     elseif forward_check && reverse_check
-        locs = findall(query, dna)   
+        locs = findall(query, dna)
         startSite = [loc.start for loc in locs]
         locs_reverse = findall(query, reverse_dna)
         startSite_reverse = [loc.start for loc in locs_reverse]
@@ -40,7 +40,7 @@ function isMatch(locs::Dict{String,Vector{Int64}})::Bool
     end
 end
 
-function printTabule(outf::IO, uplocs::Dict{String,Vector{Int64}},downlocs::Dict{String,Vector{Int64}},uplocs2::Dict{String,Vector{Int64}},downlocs2::Dict{String,Vector{Int64}},id::String,sickType::String,chr::String,abpos::Int64,ref::String,alt::String,gene::String,oldInfo::String)
+function printTabule(outf::IO, uplocs::Dict{String,Vector{Int64}},downlocs::Dict{String,Vector{Int64}},uplocs2::Dict{String,Vector{Int64}},downlocs2::Dict{String,Vector{Int64}},id::AbstractString,chr::AbstractString,abpos::Int64,ref::AbstractString,alt::AbstractString,gene::AbstractString,oldInfo::AbstractString, hgvsg::AbstractString)
     if (isMatch(uplocs) && isMatch(downlocs)) || (isMatch(uplocs2) && isMatch(downlocs2))
         extraInfo = ""
         if uplocs["forwad"] != [0]
@@ -96,7 +96,7 @@ function printTabule(outf::IO, uplocs::Dict{String,Vector{Int64}},downlocs::Dict
             end
         end
         extraInfo = extraInfo[1:end-1]
-        println(outf, id, "\t", chr, "\t", abpos, "\t", ref, "\t", alt, "\t", gene, "\t", sickType, "\t", oldInfo, "\t", extraInfo)
+        println(outf, id, "\t", chr, "\t", abpos, "\t", ref, "\t", alt, "\t", gene, "\t", hgvsg, "\t", oldInfo, "\t", extraInfo)
     end
 end
 
@@ -104,22 +104,15 @@ function SearchRebase(dna::String, site_name::String, site::LongSequence{DNAAlph
     dnas = open(FASTA.Reader, dna, index= string(dna, ".fai"))
     w = open(outF, "w")
     ## read the file from step1
-    first_step_file = joinpath("Results/step1", site_name*".tsv")
+    first_step_file = joinpath("firstStep/cond1", site_name*".tsv")
     for line in eachline(first_step_file)
-        id, chr, abpos, ref, alt,gene, sickType, extraInfo = split(line, '\t')
-        id = convert(String, id)
-        chr = convert(String, chr)
+        id, chr, abpos, ref, alt,gene, hgvsg, extraInfo = split(line, '\t')
         abpos = parse(Int64, abpos)
-        ref = convert(String, ref)
-        alt = convert(String, alt)
-        gene = convert(String, gene)
-        sickType = convert(String, sickType)
-        extraInfo = convert(String, extraInfo)
         ## get the sequence from the id and dna
         dna = LongSequence{DNAAlphabet{4}}(FASTA.sequence(dnas[id]))
-        _,_,pos,_,_,_,_,_,_,_,_ = split(FASTA.description(dnas[id]),"|")
         ## check from -120bp to 10bp
-        pos = parse(Int64, pos)
+        des = FASTA.description(dnas[id])
+        pos = parse(Int64,split(des," ")[2])
         upstream_1 = dna[(pos-120):(pos-10-1)]
         up_locs_1 = find_restriction_site(upstream_1, site)
         ## check from 10bp to 120bp
@@ -130,7 +123,7 @@ function SearchRebase(dna::String, site_name::String, site::LongSequence{DNAAlph
         ## check from 10bp to 120bp
         downstream_2 = dna[(pos+10+1):(pos+120)]
         down_locs_2 = find_restriction_site(downstream_2, site)
-        printTabule(w, up_locs_1, down_locs_1, up_locs_2, down_locs_2, id, sickType, chr, abpos, ref, alt, gene, extraInfo)
+        printTabule(w, up_locs_1, down_locs_1, up_locs_2, down_locs_2, id, chr, abpos, ref, alt, gene, extraInfo, hgvsg)
     end
     close(dnas)
     close(w)
@@ -141,6 +134,9 @@ function main(rebase::String,inF::String,outpath::String)
         mkpath(outpath)
     end
     for line in eachline(rebase)
+        if startswith(line,"Name")
+            continue
+        end
         name, site = split(line, "\t")
         name = convert(String,name)
         site = LongSequence{DNAAlphabet{4}}(site)
@@ -149,4 +145,6 @@ function main(rebase::String,inF::String,outpath::String)
     end
 end
 
-main("REBASE.txt","snvs_modified.fasta","Results/step3")
+main("REs.tsv","Raw_sequences.fasta","firstStep/cond3")
+
+
